@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import org.springframework.expression.spel.standard.SpelExpression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Parse some expressions and check we get the AST we expect.
@@ -41,6 +42,60 @@ class ParsingTests {
 
 	@Nested
 	class Miscellaneous {
+
+		@Test
+		void compoundExpressions() {
+			parseCheck("property1.property2.methodOne()");
+			parseCheck("property1[0].property2['key'].methodOne()");
+		}
+
+		@Test
+		void supportedCharactersInIdentifiers() {
+			parseCheck("#var='value'");
+			parseCheck("#Varz='value'");
+			parseCheck("#VarZ='value'");
+			parseCheck("#_var='value'");
+			parseCheck("#$var='value'");
+			parseCheck("#_$_='value'");
+
+			parseCheck("age");
+			parseCheck("getAge()");
+			parseCheck("get$age()");
+			parseCheck("age");
+			parseCheck("Age");
+			parseCheck("__age");
+			parseCheck("get__age()");
+
+			parseCheck("person.age");
+			parseCheck("person.getAge()");
+			parseCheck("person.get$age()");
+			parseCheck("person$1.age");
+			parseCheck("person_1.Age");
+			parseCheck("person_1.__age");
+			parseCheck("Person_1.get__age()");
+
+			// German characters
+			parseCheck("begrüssung");
+			parseCheck("#begrüssung");
+			parseCheck("begrüssung[1]");
+			parseCheck("service.begrüssung");
+			parseCheck("service.getBegrüssung()");
+			parseCheck("Spaß");
+
+			// Spanish characters
+			parseCheck("buenos_sueños");
+
+			// Chinese characters
+			parseCheck("have乐趣()");
+		}
+
+		@Test
+		void unsupportedCharactersInIdentifiers() {
+			// Invalid syntax
+			assertThatIllegalStateException()
+					.isThrownBy(() -> parser.parseRaw("apple~banana"))
+					.withMessage("Unsupported character '~' (126) encountered at position 6 in expression.");
+		}
 
 		@Test
 		void literalNull() {

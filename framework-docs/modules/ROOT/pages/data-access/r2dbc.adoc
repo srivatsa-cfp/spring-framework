@@ -417,9 +417,9 @@ Do not pass `Collection<String>` or the like as an array parameter.
 [[r2dbc-DatabaseClient-filter]]
 ==== Statement Filters
 
-Sometimes it you need to fine-tune options on the actual `Statement`
-before it gets run. Register a `Statement` filter
-(`StatementFilterFunction`) through `DatabaseClient` to intercept and
+Sometimes you need to fine-tune options on the actual `Statement`
+before it gets run. To do so, register a `Statement` filter
+(`StatementFilterFunction`) with the `DatabaseClient` to intercept and
 modify statements in their execution, as the following example shows:
 
 [tabs]
@@ -445,7 +445,8 @@ Kotlin::
 ----
 ======
 
-`DatabaseClient` exposes also simplified `filter(…)` overload accepting `Function<Statement, Statement>`:
+`DatabaseClient` also exposes a simplified `filter(…)` overload that accepts
+a `Function<Statement, Statement>`:
 
 [tabs]
 ======
@@ -547,13 +548,13 @@ Java::
 		// R2DBC-backed implementations of the methods on the CorporateEventDao follow...
 	}
 ----
-======
 <1> Annotate the class with `@Component`.
 <2> Annotate the `ConnectionFactory` setter method with `@Autowired`.
 <3> Create a new `DatabaseClient` with the `ConnectionFactory`.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@Component // <1>
 	class R2dbcCorporateEventDao(connectionFactory: ConnectionFactory) : CorporateEventDao { // <2>
@@ -566,6 +567,7 @@ Java::
 <1> Annotate the class with `@Component`.
 <2> Constructor injection of the `ConnectionFactory`.
 <3> Create a new `DatabaseClient` with the `ConnectionFactory`.
+======
 --
 
 Regardless of which of the above template initialization styles you choose to use (or
@@ -716,19 +718,15 @@ javadoc for more details.
 === Using `R2dbcTransactionManager`
 
 The `R2dbcTransactionManager` class is a `ReactiveTransactionManager` implementation for
-single R2DBC data sources. It binds an R2DBC connection from the specified connection factory
-to the subscriber `Context`, potentially allowing for one subscriber connection for each
-connection factory.
+a single R2DBC `ConnectionFactory`. It binds an R2DBC `Connection` from the specified
+`ConnectionFactory` to the subscriber `Context`, potentially allowing for one subscriber
+`Connection` for each `ConnectionFactory`.
 
-Application code is required to retrieve the R2DBC connection through
+Application code is required to retrieve the R2DBC `Connection` through
 `ConnectionFactoryUtils.getConnection(ConnectionFactory)`, instead of R2DBC's standard
-`ConnectionFactory.create()`.
-
-All framework classes (such as `DatabaseClient`) use this strategy implicitly.
-If not used with this transaction manager, the lookup strategy behaves exactly like the common one.
-Thus, it can be used in any case.
-
-The `R2dbcTransactionManager` class supports custom isolation levels that get applied to the connection.
+`ConnectionFactory.create()`. All framework classes (such as `DatabaseClient`) use this
+strategy implicitly. If not used with a transaction manager, the lookup strategy behaves
+exactly like `ConnectionFactory.create()` and can therefore be used in any case.
 
 
 

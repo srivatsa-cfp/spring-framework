@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -343,10 +343,11 @@ public abstract class ReflectionHelper {
 	 * ({@code null} if not varargs)
 	 * @return {@code true} if some kind of conversion occurred on an argument
 	 * @throws EvaluationException if a problem occurs during conversion
-	 * @since 6.1.0
+	 * @since 6.1
 	 */
 	public static boolean convertAllMethodHandleArguments(TypeConverter converter, Object[] arguments,
 			MethodHandle methodHandle, @Nullable Integer varargsPosition) throws EvaluationException {
+
 		boolean conversionOccurred = false;
 		final MethodType methodHandleArgumentTypes = methodHandle.type();
 		if (varargsPosition == null) {

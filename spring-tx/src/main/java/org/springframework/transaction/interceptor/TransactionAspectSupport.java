@@ -26,8 +26,8 @@ import io.vavr.control.Try;
 import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
 import kotlinx.coroutines.Job;
-import kotlinx.coroutines.reactive.AwaitKt;
 import kotlinx.coroutines.reactive.ReactiveFlowKt;
+import kotlinx.coroutines.reactor.MonoKt;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.reactivestreams.Publisher;
@@ -108,16 +108,16 @@ public abstract class TransactionAspectSupport implements BeanFactoryAware, Init
 	private static final String COROUTINES_FLOW_CLASS_NAME = "kotlinx.coroutines.flow.Flow";
 
 	/**
+	 * Reactive Streams API present on the classpath?
+	 */
+	private static final boolean reactiveStreamsPresent = ClassUtils.isPresent(
+			"org.reactivestreams.Publisher", TransactionAspectSupport.class.getClassLoader());
+
+	/**
 	 * Vavr library present on the classpath?
 	 */
 	private static final boolean vavrPresent = ClassUtils.isPresent(
 			"io.vavr.control.Try", TransactionAspectSupport.class.getClassLoader());
-
-	/**
-	 * Reactive Streams API present on the classpath?
-	 */
-	private static final boolean reactiveStreamsPresent =
-			ClassUtils.isPresent("org.reactivestreams.Publisher", TransactionAspectSupport.class.getClassLoader());
 
 	/**
 	 * Holder to support the {@code currentTransactionStatus()} method,
@@ -372,9 +372,8 @@ public abstract class TransactionAspectSupport implements BeanFactoryAware, Init
 			}
 			Object result = txSupport.invokeWithinTransaction(method, targetClass, callback, txAttr, rtm);
 			if (corInv != null) {
-				Publisher<?> pr = (Publisher<?>) result;
-				return (hasSuspendingFlowReturnType ? KotlinDelegate.asFlow(pr) :
-						KotlinDelegate.awaitSingleOrNull(pr, corInv.getContinuation()));
+				return (hasSuspendingFlowReturnType ? KotlinDelegate.asFlow((Publisher<?>) result) :
+						KotlinDelegate.awaitSingleOrNull((Mono<?>) result, corInv.getContinuation()));
 			}
 			return result;
 		}
@@ -901,10 +900,10 @@ public abstract class TransactionAspectSupport implements BeanFactoryAware, Init
 			return ReactiveFlowKt.asFlow(publisher);
 		}
 
-		@SuppressWarnings({"unchecked", "deprecation"})
+		@SuppressWarnings("unchecked")
 		@Nullable
-		private static Object awaitSingleOrNull(Publisher<?> publisher, Object continuation) {
-			return AwaitKt.awaitSingleOrNull(publisher, (Continuation<Object>) continuation);
+		private static Object awaitSingleOrNull(Mono<?> publisher, Object continuation) {
+			return MonoKt.awaitSingleOrNull(publisher, (Continuation<Object>) continuation);
 		}
 
 		public static Publisher<?> invokeSuspendingFunction(Method method, CoroutinesInvocationCallback callback) {
@@ -1084,10 +1083,11 @@ public abstract class TransactionAspectSupport implements BeanFactoryAware, Init
 		 * @param ex the throwable to try to unwrap
 		 */
 		private Throwable unwrapIfResourceCleanupFailure(Throwable ex) {
-			if (ex instanceof RuntimeException &&
-					ex.getCause() != null &&
-					ex.getMessage().startsWith("Async resource cleanup failed")) {
-				return ex.getCause();
+			if (ex instanceof RuntimeException && ex.getCause() != null) {
+				String msg = ex.getMessage();
+				if (msg != null && msg.startsWith("Async resource cleanup failed")) {
+					return ex.getCause();
+				}
 			}
 			return ex;
 		}

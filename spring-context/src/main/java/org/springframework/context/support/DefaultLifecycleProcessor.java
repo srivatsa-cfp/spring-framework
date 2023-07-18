@@ -16,6 +16,7 @@
 
 package org.springframework.context.support;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -33,6 +34,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.crac.CheckpointException;
+import org.crac.Core;
+import org.crac.RestoreException;
 
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
@@ -44,6 +48,7 @@ import org.springframework.context.LifecycleProcessor;
 import org.springframework.context.Phased;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.core.NativeDetector;
+import org.springframework.core.SpringProperties;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -54,13 +59,33 @@ import org.springframework.util.ClassUtils;
  * <p>Provides interaction with {@link Lifecycle} and {@link SmartLifecycle} beans in
  * groups for specific phases, on startup/shutdown as well as for explicit start/stop
  * interactions on a {@link org.springframework.context.ConfigurableApplicationContext}.
- * As of 6.1, this also includes support for JVM snapshot checkpoints (Project CRaC).
+ * As of 6.1, this also includes support for JVM checkpoint/restore (Project CRaC).
  *
  * @author Mark Fisher
  * @author Juergen Hoeller
  * @since 3.0
  */
 public class DefaultLifecycleProcessor implements LifecycleProcessor, BeanFactoryAware {
+
+	/**
+	 * Property name for a common context checkpoint: {@value}.
+	 * @since 6.1
+	 * @see #CHECKPOINT_ON_REFRESH_VALUE
+	 * @see org.crac.Core#checkpointRestore()
+	 */
+	public static final String CHECKPOINT_PROPERTY_NAME = "spring.context.checkpoint";
+
+	/**
+	 * Recognized value for the context checkpoint property: {@value}.
+	 * @since 6.1
+	 * @see #CHECKPOINT_PROPERTY_NAME
+	 * @see org.crac.Core#checkpointRestore()
+	 */
+	public static final String CHECKPOINT_ON_REFRESH_VALUE = "onRefresh";
+
+
+	private final static boolean checkpointOnRefresh =
+			CHECKPOINT_ON_REFRESH_VALUE.equalsIgnoreCase(SpringProperties.getProperty(CHECKPOINT_PROPERTY_NAME));
 
 	private final Log logger = LogFactory.getLog(getClass());
 
@@ -87,9 +112,10 @@ public class DefaultLifecycleProcessor implements LifecycleProcessor, BeanFactor
 
 
 	/**
-	 * Specify the maximum time allotted in milliseconds for the shutdown of
-	 * any phase (group of SmartLifecycle beans with the same 'phase' value).
-	 * <p>The default value is 30 seconds.
+	 * Specify the maximum time allotted in milliseconds for the shutdown of any
+	 * phase (group of {@link SmartLifecycle} beans with the same 'phase' value).
+	 * <p>The default value is 30000 milliseconds (30 seconds).
+	 * @see SmartLifecycle#getPhase()
 	 */
 	public void setTimeoutPerShutdownPhase(long timeoutPerShutdownPhase) {
 		this.timeoutPerShutdownPhase = timeoutPerShutdownPhase;
@@ -144,6 +170,10 @@ public class DefaultLifecycleProcessor implements LifecycleProcessor, BeanFactor
 
 	@Override
 	public void onRefresh() {
+		if (checkpointOnRefresh) {
+			new CracDelegate().checkpointRestore();
+		}
+
 		this.stoppedBeans = null;
 		startBeans(true);
 		this.running = true;
@@ -456,17 +486,33 @@ public class DefaultLifecycleProcessor implements LifecycleProcessor, BeanFactor
 	private class CracDelegate {
 
 		public Object registerResource() {
-			logger.debug("Registering JVM snapshot callback for Spring-managed lifecycle beans");
+			logger.debug("Registering JVM checkpoint/restore callback for Spring-managed lifecycle beans");
 			CracResourceAdapter resourceAdapter = new CracResourceAdapter();
 			org.crac.Core.getGlobalContext().register(resourceAdapter);
 			return resourceAdapter;
+		}
+
+		public void checkpointRestore() {
+			logger.info("Triggering JVM checkpoint/restore");
+			try {
+				Core.checkpointRestore();
+			}
+			catch (UnsupportedOperationException ex) {
+				throw new ApplicationContextException("CRaC checkpoint not supported on current JVM", ex);
+			}
+			catch (CheckpointException ex) {
+				throw new ApplicationContextException("Failed to take CRaC checkpoint on refresh", ex);
+			}
+			catch (RestoreException ex) {
+				throw new ApplicationContextException("Failed to restore CRaC checkpoint on refresh", ex);
+			}
 		}
 	}
 
 
 	/**
 	 * Resource adapter for Project CRaC, triggering a stop-and-restart cycle
-	 * for Spring-managed lifecycle beans around a JVM snapshot checkpoint.
+	 * for Spring-managed lifecycle beans around a JVM checkpoint/restore.
 	 * @since 6.1
 	 * @see #stopForRestart()
 	 * @see #restartAfterStop()
@@ -491,18 +537,21 @@ public class DefaultLifecycleProcessor implements LifecycleProcessor, BeanFactor
 			thread.start();
 			awaitPreventShutdownBarrier();
 
-			logger.debug("Stopping Spring-managed lifecycle beans before JVM snapshot checkpoint");
+			logger.debug("Stopping Spring-managed lifecycle beans before JVM checkpoint");
 			stopForRestart();
 		}
 
 		@Override
 		public void afterRestore(org.crac.Context<? extends org.crac.Resource> context) {
-			logger.debug("Restarting Spring-managed lifecycle beans after JVM snapshot restore");
+			long restartTime = System.nanoTime();
+			logger.info("Restarting Spring-managed lifecycle beans after JVM restore");
 			restartAfterStop();
 
 			// Barrier for prevent-shutdown thread not needed anymore
-			awaitPreventShutdownBarrier();
 			this.barrier = null;
+
+			Duration timeTakenToRestart = Duration.ofNanos(System.nanoTime() - restartTime);
+			logger.info("Spring-managed lifecycle restart completed in " + timeTakenToRestart.toMillis() + " ms");
 		}
 
 		private void awaitPreventShutdownBarrier() {

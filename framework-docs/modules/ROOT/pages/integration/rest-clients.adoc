@@ -3,9 +3,17 @@
 
 The Spring Framework provides the following choices for making calls to REST endpoints:
 
-* xref:integration/rest-clients.adoc#rest-webclient[`WebClient`] - non-blocking, reactive client w fluent API.
+* xref:integration/rest-clients.adoc#rest-restclient[`RestClient`] - synchronous client with a fluent API.
+* xref:integration/rest-clients.adoc#rest-webclient[`WebClient`] - non-blocking, reactive client with fluent API.
 * xref:integration/rest-clients.adoc#rest-resttemplate[`RestTemplate`] - synchronous client with template method API.
 * xref:integration/rest-clients.adoc#rest-http-interface[HTTP Interface] - annotated interface with generated, dynamic proxy implementation.
+
+
+[[rest-restclient]]
+== `RestClient`
+
+Reference documentation is forthcoming.
+For now, please refer to the https://docs.spring.io/spring-framework/docs/6.1.0-M2/javadoc-api/org/springframework/web/client/RestClient.html[API documentation].
 
 
 [[rest-webclient]]
@@ -36,9 +44,8 @@ The `RestTemplate` provides a higher level API over HTTP client libraries. It ma
 easy to invoke REST endpoints in a single line. It exposes the following groups of
 overloaded methods:
 
-NOTE: `RestTemplate` is in maintenance mode, with only requests for minor
-changes and bugs to be accepted. Please, consider using the
-xref:web/webflux-webclient.adoc[WebClient] instead.
+NOTE: The xref:integration/rest-clients.adoc#rest-restclient[`RestClient`] offers a more modern API for synchronous HTTP access.
+For asynchronous and streaming scenarios, consider the reactive xref:web/webflux-webclient.adoc[WebClient].
 
 [[rest-overview-of-resttemplate-methods-tbl]]
 .RestTemplate methods
@@ -375,12 +382,37 @@ One, declare an interface with `@HttpExchange` methods:
 	}
 ----
 
-Two, create a proxy that will perform the declared HTTP exchanges:
+Two, create a proxy that will perform the declared HTTP exchanges,
+either using `WebClient`:
 
 [source,java,indent=0,subs="verbatim,quotes"]
 ----
 	WebClient client = WebClient.builder().baseUrl("https://api.github.com/").build();
-	HttpServiceProxyFactory factory = HttpServiceProxyFactory.builder(WebClientAdapter.forClient(client)).build();
+	WebClientAdapter adapter = WebClientAdapter.forClient(webClient)
+	HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
+
+	RepositoryService service = factory.createClient(RepositoryService.class);
+----
+
+using `RestTemplate`:
+
+[source,java,indent=0,subs="verbatim,quotes"]
+----
+	RestTemplate restTemplate = new RestTemplate();
+	restTemplate.setUriTemplateHandler(new DefaultUriBuilderFactory("https://api.github.com/"));
+	RestTemplateAdapter adapter = RestTemplateAdapter.create(restTemplate);
+	HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
+
+	RepositoryService service = factory.createClient(RepositoryService.class);
+----
+
+or using `RestClient`:
+
+[source,java,indent=0,subs="verbatim,quotes"]
+----
+	RestClient restClient = RestClient.builder().baseUrl("https://api.github.com/").build();
+	RestClientAdapter adapter = RestClientAdapter.create(restClient);
+	HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
 	RepositoryService service = factory.createClient(RepositoryService.class);
 ----
@@ -448,6 +480,10 @@ method parameters:
   Object (entity to be encoded, e.g. as JSON), `HttpEntity` (part content and headers),
   a Spring `Part`, or Reactive Streams `Publisher` of any of the above.
 
+| `MultipartFile`
+| Add a request part from a `MultipartFile`, typically used in a Spring MVC controller
+  where it represents an uploaded file.
+
 | `@CookieValue`
 | Add a cookie or multiple cookies. The argument may be a `Map<String, ?>` or
   `MultiValueMap<String, ?>` with multiple cookies, a `Collection<?>` of values, or an
@@ -496,6 +532,13 @@ Annotated, HTTP exchange methods support the following return values:
 
 TIP: You can also use any other async or reactive types registered in the
 `ReactiveAdapterRegistry`.
+
+By default, the behavior of HTTP service methods with synchronous (blocking) method
+signature depends on connection and timeout settings of the underlying HTTP client.
+`HttpServiceProxyFactory.Builder` does expose a `blockTimeout` option that also lets you
+configure the maximum time to block for a response, but we recommend configuring timeout
+values directly on the underlying HTTP client, which likely provides more control over
+such settings.
 
 
 [[rest-http-interface-exceptions]]

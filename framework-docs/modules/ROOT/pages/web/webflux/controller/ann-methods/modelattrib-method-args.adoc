@@ -18,16 +18,17 @@ Java::
 	@PostMapping("/owners/{ownerId}/pets/{petId}/edit")
 	public String processSubmit(@ModelAttribute Pet pet) { } // <1>
 ----
-======
 <1> Bind an instance of `Pet`.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@PostMapping("/owners/{ownerId}/pets/{petId}/edit")
 	fun processSubmit(@ModelAttribute pet: Pet): String { } // <1>
 ----
 <1> Bind an instance of `Pet`.
+======
 
 The `Pet` instance in the preceding example is resolved as follows:
 
@@ -63,11 +64,11 @@ Java::
 		// ...
 	}
 ----
-======
 <1> Adding a `BindingResult`.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@PostMapping("/owners/{ownerId}/pets/{petId}/edit")
 	fun processSubmit(@ModelAttribute("pet") pet: Pet, result: BindingResult): String { // <1>
@@ -78,6 +79,7 @@ Java::
 	}
 ----
 <1> Adding a `BindingResult`.
+======
 
 You can automatically apply validation after data binding by adding the
 `jakarta.validation.Valid` annotation or Spring's `@Validated` annotation (see also
@@ -98,11 +100,11 @@ Java::
 		// ...
 	}
 ----
-======
 <1> Using `@Valid` on a model attribute argument.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@PostMapping("/owners/{ownerId}/pets/{petId}/edit")
 	fun processSubmit(@Valid @ModelAttribute("pet") pet: Pet, result: BindingResult): String { // <1>
@@ -113,6 +115,7 @@ Java::
 	}
 ----
 <1> Using `@Valid` on a model attribute argument.
+======
 
 Spring WebFlux, unlike Spring MVC, supports reactive types in the model -- for example,
 `Mono<Account>` or `io.reactivex.Single<Account>`. You can declare a `@ModelAttribute` argument
@@ -157,10 +160,13 @@ Kotlin::
 ----
 ======
 
-Note that use of `@ModelAttribute` is optional -- for example, to set its attributes.
-By default, any argument that is not a simple value type (as determined by
-{api-spring-framework}/beans/BeanUtils.html#isSimpleProperty-java.lang.Class-[BeanUtils#isSimpleProperty])
-and is not resolved by any other argument resolver is treated as if it were annotated
-with `@ModelAttribute`.
+If method validation applies because other parameters have `@Constraint` annotations,
+then `HandlerMethodValidationException` would be raised instead. See the section on
+controller method xref:web/webmvc/mvc-controller/ann-validation.adoc[Validation].
+
+TIP: Using `@ModelAttribute` is optional. By default, any argument that is not a simple
+value type as determined by
+{api-spring-framework}/beans/BeanUtils.html#isSimpleProperty-java.lang.Class-[BeanUtils#isSimpleProperty]
+_AND_ that is not resolved by any other argument resolver is treated as an `@ModelAttribute`.
 
 

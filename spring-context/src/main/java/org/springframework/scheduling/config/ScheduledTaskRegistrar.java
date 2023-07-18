@@ -28,6 +28,8 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.micrometer.observation.ObservationRegistry;
+
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.lang.Nullable;
@@ -53,6 +55,7 @@ import org.springframework.util.CollectionUtils;
  * @author Tobias Montagna-Hay
  * @author Sam Brannen
  * @author Arjen Poutsma
+ * @author Brian Clozel
  * @since 3.0
  * @see org.springframework.scheduling.annotation.EnableAsync
  * @see org.springframework.scheduling.annotation.SchedulingConfigurer
@@ -76,6 +79,9 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 
 	@Nullable
 	private ScheduledExecutorService localExecutor;
+
+	@Nullable
+	private ObservationRegistry observationRegistry;
 
 	@Nullable
 	private List<TriggerTask> triggerTasks;
@@ -130,6 +136,22 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 		return this.taskScheduler;
 	}
 
+	/**
+	 * Return the {@link ObservationRegistry} for this registrar.
+	 * @since 6.1
+	 */
+	@Nullable
+	public ObservationRegistry getObservationRegistry() {
+		return this.observationRegistry;
+	}
+
+	/**
+	 * Configure an {@link ObservationRegistry} to record observations for scheduled tasks.
+	 * @since 6.1
+	 */
+	public void setObservationRegistry(@Nullable ObservationRegistry observationRegistry) {
+		this.observationRegistry = observationRegistry;
+	}
 
 	/**
 	 * Specify triggered tasks as a Map of Runnables (the tasks) and Trigger objects
@@ -485,7 +507,7 @@ public class ScheduledTaskRegistrar implements ScheduledTaskHolder, Initializing
 		}
 		if (this.taskScheduler != null) {
 			Duration initialDelay = task.getInitialDelayDuration();
-			if (initialDelay.toMillis() > 0) {
+			if (initialDelay.toNanos() > 0) {
 				Instant startTime = this.taskScheduler.getClock().instant().plus(initialDelay);
 				scheduledTask.future =
 						this.taskScheduler.scheduleAtFixedRate(task.getRunnable(), startTime, task.getIntervalDuration());

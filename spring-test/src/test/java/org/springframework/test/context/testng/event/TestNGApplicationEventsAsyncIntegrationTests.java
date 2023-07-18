@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * or assert the events from a separate thread, in conjunction with TestNG.
  *
  * @author Simon Baslé
- * @since 6.1.0
+ * @since 6.1
  */
 @RecordApplicationEvents
 class TestNGApplicationEventsAsyncIntegrationTests extends AbstractTestNGSpringContextTests {
@@ -65,10 +65,10 @@ class TestNGApplicationEventsAsyncIntegrationTests extends AbstractTestNGSpringC
 		context.publishEvent(new CustomEvent("asyncConsumption"));
 
 		Awaitility.await().atMost(Durations.ONE_SECOND)
-				.untilAsserted(() -> assertThat(assertThat(this.applicationEvents.stream(CustomEvent.class))
+				.untilAsserted(() -> assertThat(this.applicationEvents.stream(CustomEvent.class))
 						.singleElement()
 						.extracting(CustomEvent::getMessage, InstanceOfAssertFactories.STRING)
-						.isEqualTo("asyncConsumption")));
+						.isEqualTo("asyncConsumption"));
 	}
 
 

@@ -159,7 +159,7 @@ public class FunctionReference extends SpelNodeImpl {
 	 * @param methodHandle the method to invoke
 	 * @return the return value of the invoked Java method
 	 * @throws EvaluationException if there is any problem invoking the method
-	 * @since 6.1.0
+	 * @since 6.1
 	 */
 	private TypedValue executeFunctionBoundMethodHandle(ExpressionState state, MethodHandle methodHandle) throws EvaluationException {
 		Object[] functionArgs = getArguments(state);
@@ -199,8 +199,7 @@ public class FunctionReference extends SpelNodeImpl {
 			varArgPosition = declaredParamCount - 1;
 		}
 		TypeConverter converter = state.getEvaluationContext().getTypeConverter();
-		boolean conversionOccurred = ReflectionHelper.convertAllMethodHandleArguments(converter,
-				functionArgs, methodHandle, varArgPosition);
+		ReflectionHelper.convertAllMethodHandleArguments(converter, functionArgs, methodHandle, varArgPosition);
 
 		if (isSuspectedVarargs && declaredParamCount == 1) {
 			//we only repack the varargs if it is the ONLY argument

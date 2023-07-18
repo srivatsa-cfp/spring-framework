@@ -605,11 +605,11 @@ Java::
 		// ...
 	}
 ----
-======
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim",role="secondary"]
-.Kotlin
 ----
 	@Before("com.xyz.Pointcuts.publicMethod() && @annotation(auditable)") // <1>
 	fun audit(auditable: Auditable) {
@@ -618,6 +618,7 @@ Java::
 	}
 ----
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
+======
 
 [[aop-ataspectj-advice-params-generics]]
 === Advice Parameters and Generics
@@ -727,11 +728,6 @@ of determining parameter names, an exception will be thrown.
 `StandardReflectionParameterNameDiscoverer` :: Uses the standard `java.lang.reflect.Parameter`
   API to determine parameter names. Requires that code be compiled with the `-parameters`
   flag for `javac`. Recommended approach on Java 8+.
-`LocalVariableTableParameterNameDiscoverer` :: Analyzes the local variable table available
-  in the byte code of the advice class to determine parameter names from debug information.
-  Requires that code be compiled with debug symbols (`-g:vars` at a minimum). Deprecated
-  as of Spring Framework 6.0 for removal in Spring Framework 6.1 in favor of compiling
-  code with `-parameters`. Not supported in a GraalVM native image.
 `AspectJAdviceParameterNameDiscoverer` :: Deduces parameter names from the pointcut
   expression, `returning`, and `throwing` clauses. See the
   {api-spring-framework}/aop/aspectj/AspectJAdviceParameterNameDiscoverer.html[javadoc]
@@ -770,12 +766,12 @@ Java::
 		// ... use code and bean
 	}
 ----
-======
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
 <2> Declares `bean` and `auditable` as the argument names.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim",role="secondary"]
-.Kotlin
 ----
 	@Before(
 		value = "com.xyz.Pointcuts.publicMethod() && target(bean) && @annotation(auditable)", // <1>
@@ -787,6 +783,7 @@ Java::
 ----
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
 <2> Declares `bean` and `auditable` as the argument names.
+======
 
 If the first parameter is of type `JoinPoint`, `ProceedingJoinPoint`, or
 `JoinPoint.StaticPart`, you can omit the name of the parameter from the value of the
@@ -807,12 +804,12 @@ Java::
 		// ... use code, bean, and jp
 	}
 ----
-======
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
 <2> Declares `bean` and `auditable` as the argument names.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim",role="secondary"]
-.Kotlin
 ----
 	@Before(
 		value = "com.xyz.Pointcuts.publicMethod() && target(bean) && @annotation(auditable)", // <1>
@@ -824,6 +821,7 @@ Java::
 ----
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
 <2> Declares `bean` and `auditable` as the argument names.
+======
 
 The special treatment given to the first parameter of type `JoinPoint`,
 `ProceedingJoinPoint`, or `JoinPoint.StaticPart` is particularly convenient for advice
@@ -842,11 +840,11 @@ Java::
 		// ... use jp
 	}
 ----
-======
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim",role="secondary"]
-.Kotlin
 ----
 	@Before("com.xyz.Pointcuts.publicMethod()") // <1>
 	fun audit(jp: JoinPoint) {
@@ -854,6 +852,7 @@ Java::
 	}
 ----
 <1> References the `publicMethod` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-pointcuts-combining[Combining Pointcut Expressions].
+======
 
 
 [[aop-ataspectj-advice-proceeding-with-the-call]]
@@ -879,11 +878,11 @@ Java::
 		return pjp.proceed(new Object[] {newPattern});
 	}
 ----
-======
 <1> References the `inDataAccessLayer` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-common-pointcuts[Sharing Named Pointcut Definitions].
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim",role="secondary"]
-.Kotlin
 ----
 	@Around("execution(List<Account> find*(..)) && " +
 			"com.xyz.CommonPointcuts.inDataAccessLayer() && " +
@@ -895,6 +894,7 @@ Java::
 	}
 ----
 <1> References the `inDataAccessLayer` named pointcut defined in xref:core/aop/ataspectj/pointcuts.adoc#aop-common-pointcuts[Sharing Named Pointcut Definitions].
+======
 
 In many cases, you do this binding anyway (as in the preceding example).
 

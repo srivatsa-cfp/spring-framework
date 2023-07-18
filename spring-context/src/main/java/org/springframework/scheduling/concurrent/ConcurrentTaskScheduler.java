@@ -70,6 +70,9 @@ import org.springframework.util.ErrorHandler;
  */
 public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements TaskScheduler {
 
+	private static final TimeUnit NANO = TimeUnit.NANOSECONDS;
+
+
 	@Nullable
 	private static Class<?> managedScheduledExecutorServiceClass;
 
@@ -100,10 +103,14 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	 * Create a new ConcurrentTaskScheduler,
 	 * using a single thread executor as default.
 	 * @see java.util.concurrent.Executors#newSingleThreadScheduledExecutor()
+	 * @deprecated in favor of {@link #ConcurrentTaskScheduler(ScheduledExecutorService)}
+	 * with an externally provided Executor
 	 */
+	@Deprecated(since = "6.1")
 	public ConcurrentTaskScheduler() {
 		super();
-		this.scheduledExecutor = initScheduledExecutor(null);
+		this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
+		this.enterpriseConcurrentScheduler = false;
 	}
 
 	/**
@@ -116,9 +123,11 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	 * to delegate to for {@link org.springframework.scheduling.SchedulingTaskExecutor}
 	 * as well as {@link TaskScheduler} invocations
 	 */
-	public ConcurrentTaskScheduler(ScheduledExecutorService scheduledExecutor) {
+	public ConcurrentTaskScheduler(@Nullable ScheduledExecutorService scheduledExecutor) {
 		super(scheduledExecutor);
-		this.scheduledExecutor = initScheduledExecutor(scheduledExecutor);
+		if (scheduledExecutor != null) {
+			initScheduledExecutor(scheduledExecutor);
+		}
 	}
 
 	/**
@@ -134,21 +143,14 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	 */
 	public ConcurrentTaskScheduler(Executor concurrentExecutor, ScheduledExecutorService scheduledExecutor) {
 		super(concurrentExecutor);
-		this.scheduledExecutor = initScheduledExecutor(scheduledExecutor);
+		initScheduledExecutor(scheduledExecutor);
 	}
 
 
-	private ScheduledExecutorService initScheduledExecutor(@Nullable ScheduledExecutorService scheduledExecutor) {
-		if (scheduledExecutor != null) {
-			this.scheduledExecutor = scheduledExecutor;
-			this.enterpriseConcurrentScheduler = (managedScheduledExecutorServiceClass != null &&
-					managedScheduledExecutorServiceClass.isInstance(scheduledExecutor));
-		}
-		else {
-			this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
-			this.enterpriseConcurrentScheduler = false;
-		}
-		return this.scheduledExecutor;
+	private void initScheduledExecutor(ScheduledExecutorService scheduledExecutor) {
+		this.scheduledExecutor = scheduledExecutor;
+		this.enterpriseConcurrentScheduler = (managedScheduledExecutorServiceClass != null &&
+				managedScheduledExecutorServiceClass.isInstance(scheduledExecutor));
 	}
 
 	/**
@@ -162,7 +164,7 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	 * as well, pass the same executor reference to {@link #setConcurrentExecutor}.
 	 * @see #setConcurrentExecutor
 	 */
-	public void setScheduledExecutor(@Nullable ScheduledExecutorService scheduledExecutor) {
+	public void setScheduledExecutor(ScheduledExecutorService scheduledExecutor) {
 		initScheduledExecutor(scheduledExecutor);
 	}
 
@@ -204,18 +206,18 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 			}
 		}
 		catch (RejectedExecutionException ex) {
-			throw new TaskRejectedException("Executor [" + this.scheduledExecutor + "] did not accept task: " + task, ex);
+			throw new TaskRejectedException(this.scheduledExecutor, task, ex);
 		}
 	}
 
 	@Override
 	public ScheduledFuture<?> schedule(Runnable task, Instant startTime) {
-		Duration initialDelay = Duration.between(this.clock.instant(), startTime);
+		Duration delay = Duration.between(this.clock.instant(), startTime);
 		try {
-			return this.scheduledExecutor.schedule(decorateTask(task, false), initialDelay.toMillis(), TimeUnit.MILLISECONDS);
+			return this.scheduledExecutor.schedule(decorateTask(task, false), NANO.convert(delay), NANO);
 		}
 		catch (RejectedExecutionException ex) {
-			throw new TaskRejectedException("Executor [" + this.scheduledExecutor + "] did not accept task: " + task, ex);
+			throw new TaskRejectedException(this.scheduledExecutor, task, ex);
 		}
 	}
 
@@ -223,20 +225,22 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	public ScheduledFuture<?> scheduleAtFixedRate(Runnable task, Instant startTime, Duration period) {
 		Duration initialDelay = Duration.between(this.clock.instant(), startTime);
 		try {
-			return this.scheduledExecutor.scheduleAtFixedRate(decorateTask(task, true), initialDelay.toMillis(), period.toMillis(), TimeUnit.MILLISECONDS);
+			return this.scheduledExecutor.scheduleAtFixedRate(decorateTask(task, true),
+					NANO.convert(initialDelay), NANO.convert(period), NANO);
 		}
 		catch (RejectedExecutionException ex) {
-			throw new TaskRejectedException("Executor [" + this.scheduledExecutor + "] did not accept task: " + task, ex);
+			throw new TaskRejectedException(this.scheduledExecutor, task, ex);
 		}
 	}
 
 	@Override
 	public ScheduledFuture<?> scheduleAtFixedRate(Runnable task, Duration period) {
 		try {
-			return this.scheduledExecutor.scheduleAtFixedRate(decorateTask(task, true), 0, period.toMillis(), TimeUnit.MILLISECONDS);
+			return this.scheduledExecutor.scheduleAtFixedRate(decorateTask(task, true),
+					0, NANO.convert(period), NANO);
 		}
 		catch (RejectedExecutionException ex) {
-			throw new TaskRejectedException("Executor [" + this.scheduledExecutor + "] did not accept task: " + task, ex);
+			throw new TaskRejectedException(this.scheduledExecutor, task, ex);
 		}
 	}
 
@@ -244,20 +248,22 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	public ScheduledFuture<?> scheduleWithFixedDelay(Runnable task, Instant startTime, Duration delay) {
 		Duration initialDelay = Duration.between(this.clock.instant(), startTime);
 		try {
-			return this.scheduledExecutor.scheduleWithFixedDelay(decorateTask(task, true), initialDelay.toMillis(), delay.toMillis(), TimeUnit.MILLISECONDS);
+			return this.scheduledExecutor.scheduleWithFixedDelay(decorateTask(task, true),
+					NANO.convert(initialDelay), NANO.convert(delay), NANO);
 		}
 		catch (RejectedExecutionException ex) {
-			throw new TaskRejectedException("Executor [" + this.scheduledExecutor + "] did not accept task: " + task, ex);
+			throw new TaskRejectedException(this.scheduledExecutor, task, ex);
 		}
 	}
 
 	@Override
 	public ScheduledFuture<?> scheduleWithFixedDelay(Runnable task, Duration delay) {
 		try {
-			return this.scheduledExecutor.scheduleWithFixedDelay(decorateTask(task, true), 0, delay.toMillis(), TimeUnit.MILLISECONDS);
+			return this.scheduledExecutor.scheduleWithFixedDelay(decorateTask(task, true),
+					0, NANO.convert(delay), NANO);
 		}
 		catch (RejectedExecutionException ex) {
-			throw new TaskRejectedException("Executor [" + this.scheduledExecutor + "] did not accept task: " + task, ex);
+			throw new TaskRejectedException(this.scheduledExecutor, task, ex);
 		}
 	}
 

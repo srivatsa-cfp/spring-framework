@@ -17,16 +17,14 @@
 package org.springframework.util;
 
 import java.lang.reflect.Array;
-import java.net.URI;
-import java.net.URL;
-import java.time.temporal.Temporal;
+import java.nio.charset.Charset;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.TimeZone;
 
 import org.springframework.lang.Nullable;
 
@@ -60,6 +58,9 @@ public abstract class ObjectUtils {
 	private static final String EMPTY_ARRAY = ARRAY_START + ARRAY_END;
 	private static final String ARRAY_ELEMENT_SEPARATOR = ", ";
 	private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+	private static final String NON_EMPTY_ARRAY = ARRAY_START + "..." + ARRAY_END;
+	private static final String EMPTY_COLLECTION = "[]";
+	private static final String NON_EMPTY_COLLECTION = "[...]";
 
 
 	/**
@@ -899,65 +900,82 @@ public abstract class ObjectUtils {
 	 * <p>Returns:
 	 * <ul>
 	 * <li>{@code "null"} if {@code obj} is {@code null}</li>
+	 * <li>{@code"Optional.empty"} if {@code obj} is an empty {@link Optional}</li>
+	 * <li>{@code"Optional[<concise-string>]"} if {@code obj} is a non-empty {@code Optional},
+	 * where {@code <concise-string>} is the result of invoking {@link #nullSafeConciseToString}
+	 * on the object contained in the {@code Optional}</li>
+	 * <li>{@code "{}"} if {@code obj} is an empty array or {@link Map}</li>
+	 * <li>{@code "{...}"} if {@code obj} is a non-empty array or {@link Map}</li>
+	 * <li>{@code "[]"} if {@code obj} is an empty {@link Collection}</li>
+	 * <li>{@code "[...]"} if {@code obj} is a non-empty {@link Collection}</li>
 	 * <li>{@linkplain Class#getName() Class name} if {@code obj} is a {@link Class}</li>
+	 * <li>{@linkplain Charset#name() Charset name} if {@code obj} is a {@link Charset}</li>
+	 * <li>{@linkplain TimeZone#getID() TimeZone ID} if {@code obj} is a {@link TimeZone}</li>
+	 * <li>{@linkplain ZoneId#getId() Zone ID} if {@code obj} is a {@link ZoneId}</li>
 	 * <li>Potentially {@linkplain StringUtils#truncate(CharSequence) truncated string}
 	 * if {@code obj} is a {@link String} or {@link CharSequence}</li>
 	 * <li>Potentially {@linkplain StringUtils#truncate(CharSequence) truncated string}
-	 * if {@code obj} is a <em>simple type</em> whose {@code toString()} method returns
-	 * a non-null value.</li>
+	 * if {@code obj} is a <em>simple value type</em> whose {@code toString()} method
+	 * returns a non-null value</li>
 	 * <li>Otherwise, a string representation of the object's type name concatenated
-	 * with {@code @} and a hex string form of the object's identity hash code</li>
+	 * with {@code "@"} and a hex string form of the object's identity hash code</li>
 	 * </ul>
-	 * <p>In the context of this method, a <em>simple type</em> is any of the following:
-	 * a primitive wrapper (excluding {@link Void}), an {@link Enum}, a {@link Number},
-	 * a {@link Date}, a {@link Temporal}, a {@link URI}, a {@link URL}, or a {@link Locale}.
+	 * <p>In the context of this method, a <em>simple value type</em> is any of the following:
+	 * primitive wrapper (excluding {@link Void}), {@link Enum}, {@link Number},
+	 * {@link java.util.Date Date}, {@link java.time.temporal.Temporal Temporal},
+	 * {@link java.io.File File}, {@link java.nio.file.Path Path},
+	 * {@link java.net.URI URI}, {@link java.net.URL URL},
+	 * {@link java.net.InetAddress InetAddress}, {@link java.util.Currency Currency},
+	 * {@link java.util.Locale Locale}, {@link java.util.UUID UUID},
+	 * {@link java.util.regex.Pattern Pattern}.
 	 * @param obj the object to build a string representation for
 	 * @return a concise string representation of the supplied object
 	 * @since 5.3.27
 	 * @see #nullSafeToString(Object)
 	 * @see StringUtils#truncate(CharSequence)
+	 * @see ClassUtils#isSimpleValueType(Class)
 	 */
 	public static String nullSafeConciseToString(@Nullable Object obj) {
 		if (obj == null) {
 			return "null";
 		}
+		if (obj instanceof Optional<?> optional) {
+			return (optional.isEmpty() ? "Optional.empty" :
+				"Optional[%s]".formatted(nullSafeConciseToString(optional.get())));
+		}
+		if (obj.getClass().isArray()) {
+			return (Array.getLength(obj) == 0 ? EMPTY_ARRAY : NON_EMPTY_ARRAY);
+		}
+		if (obj instanceof Collection<?> collection) {
+			return (collection.isEmpty() ? EMPTY_COLLECTION : NON_EMPTY_COLLECTION);
+		}
+		if (obj instanceof Map<?, ?> map) {
+			// EMPTY_ARRAY and NON_EMPTY_ARRAY are also used for maps.
+			return (map.isEmpty() ? EMPTY_ARRAY : NON_EMPTY_ARRAY);
+		}
 		if (obj instanceof Class<?> clazz) {
 			return clazz.getName();
+		}
+		if (obj instanceof Charset charset) {
+			return charset.name();
+		}
+		if (obj instanceof TimeZone timeZone) {
+			return timeZone.getID();
+		}
+		if (obj instanceof ZoneId zoneId) {
+			return zoneId.getId();
 		}
 		if (obj instanceof CharSequence charSequence) {
 			return StringUtils.truncate(charSequence);
 		}
 		Class<?> type = obj.getClass();
-		if (isSimpleValueType(type)) {
+		if (ClassUtils.isSimpleValueType(type)) {
 			String str = obj.toString();
 			if (str != null) {
 				return StringUtils.truncate(str);
 			}
 		}
 		return type.getTypeName() + "@" + getIdentityHexString(obj);
-	}
-
-	/**
-	 * Copy of {@link org.springframework.beans.BeanUtils#isSimpleValueType(Class)}.
-	 * <p>Check if the given type represents a "simple" value type: a primitive or
-	 * primitive wrapper, an enum, a String or other CharSequence, a Number, a
-	 * Date, a Temporal, a URI, a URL, a Locale, or a Class.
-	 * <p>{@code Void} and {@code void} are not considered simple value types.
-	 * @param type the type to check
-	 * @return whether the given type represents a "simple" value type
-	 */
-	private static boolean isSimpleValueType(Class<?> type) {
-		return (Void.class != type && void.class != type &&
-				(ClassUtils.isPrimitiveOrWrapper(type) ||
-				Enum.class.isAssignableFrom(type) ||
-				CharSequence.class.isAssignableFrom(type) ||
-				Number.class.isAssignableFrom(type) ||
-				Date.class.isAssignableFrom(type) ||
-				Temporal.class.isAssignableFrom(type) ||
-				URI.class == type ||
-				URL.class == type ||
-				Locale.class == type ||
-				Class.class == type));
 	}
 
 }

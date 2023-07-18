@@ -139,12 +139,14 @@ abstract class AbstractPropertyAccessorTests {
 		assertThat(accessor.isReadableProperty("list")).isTrue();
 		assertThat(accessor.isReadableProperty("set")).isTrue();
 		assertThat(accessor.isReadableProperty("map")).isTrue();
+		assertThat(accessor.isReadableProperty("myTestBeans")).isTrue();
 		assertThat(accessor.isReadableProperty("xxx")).isFalse();
 
 		assertThat(accessor.isWritableProperty("array")).isTrue();
 		assertThat(accessor.isWritableProperty("list")).isTrue();
 		assertThat(accessor.isWritableProperty("set")).isTrue();
 		assertThat(accessor.isWritableProperty("map")).isTrue();
+		assertThat(accessor.isWritableProperty("myTestBeans")).isTrue();
 		assertThat(accessor.isWritableProperty("xxx")).isFalse();
 
 		assertThat(accessor.isReadableProperty("array[0]")).isTrue();
@@ -159,6 +161,8 @@ abstract class AbstractPropertyAccessorTests {
 		assertThat(accessor.isReadableProperty("map[key4][0].name")).isTrue();
 		assertThat(accessor.isReadableProperty("map[key4][1]")).isTrue();
 		assertThat(accessor.isReadableProperty("map[key4][1].name")).isTrue();
+		assertThat(accessor.isReadableProperty("myTestBeans[0]")).isTrue();
+		assertThat(accessor.isReadableProperty("myTestBeans[1]")).isFalse();
 		assertThat(accessor.isReadableProperty("array[key1]")).isFalse();
 
 		assertThat(accessor.isWritableProperty("array[0]")).isTrue();
@@ -173,6 +177,8 @@ abstract class AbstractPropertyAccessorTests {
 		assertThat(accessor.isWritableProperty("map[key4][0].name")).isTrue();
 		assertThat(accessor.isWritableProperty("map[key4][1]")).isTrue();
 		assertThat(accessor.isWritableProperty("map[key4][1].name")).isTrue();
+		assertThat(accessor.isReadableProperty("myTestBeans[0]")).isTrue();
+		assertThat(accessor.isReadableProperty("myTestBeans[1]")).isFalse();
 		assertThat(accessor.isWritableProperty("array[key1]")).isFalse();
 	}
 
@@ -667,22 +673,22 @@ abstract class AbstractPropertyAccessorTests {
 		accessor.setPropertyValue("myDouble", doubleValue);
 
 		assertThat(target.getMyPrimitiveByte()).isEqualTo(Byte.MAX_VALUE);
-		assertThat(target.getMyByte().byteValue()).isEqualTo(Byte.MAX_VALUE);
+		assertThat(target.getMyByte()).isEqualTo(Byte.MAX_VALUE);
 
 		assertThat(target.getMyPrimitiveShort()).isEqualTo(Short.MAX_VALUE);
-		assertThat(target.getMyShort().shortValue()).isEqualTo(Short.MAX_VALUE);
+		assertThat(target.getMyShort()).isEqualTo(Short.MAX_VALUE);
 
 		assertThat(target.getMyPrimitiveInt()).isEqualTo(Integer.MAX_VALUE);
-		assertThat(target.getMyInteger().intValue()).isEqualTo(Integer.MAX_VALUE);
+		assertThat(target.getMyInteger()).isEqualTo(Integer.MAX_VALUE);
 
 		assertThat(target.getMyPrimitiveLong()).isEqualTo(Long.MAX_VALUE);
-		assertThat(target.getMyLong().longValue()).isEqualTo(Long.MAX_VALUE);
+		assertThat(target.getMyLong()).isEqualTo(Long.MAX_VALUE);
 
 		assertThat((double) target.getMyPrimitiveFloat()).isCloseTo(Float.MAX_VALUE, within(0.001));
 		assertThat((double) target.getMyFloat()).isCloseTo(Float.MAX_VALUE, within(0.001));
 
 		assertThat(target.getMyPrimitiveDouble()).isCloseTo(Double.MAX_VALUE, within(0.001));
-		assertThat(target.getMyDouble().doubleValue()).isCloseTo(Double.MAX_VALUE, within(0.001));
+		assertThat(target.getMyDouble()).isCloseTo(Double.MAX_VALUE, within(0.001));
 	}
 
 	@Test
@@ -1388,6 +1394,7 @@ abstract class AbstractPropertyAccessorTests {
 		assertThat(accessor.getPropertyValue("map[key5[foo]].name")).isEqualTo("name8");
 		assertThat(accessor.getPropertyValue("map['key5[foo]'].name")).isEqualTo("name8");
 		assertThat(accessor.getPropertyValue("map[\"key5[foo]\"].name")).isEqualTo("name8");
+		assertThat(accessor.getPropertyValue("myTestBeans[0].name")).isEqualTo("nameZ");
 
 		MutablePropertyValues pvs = new MutablePropertyValues();
 		pvs.add("array[0].name", "name5");
@@ -1401,6 +1408,7 @@ abstract class AbstractPropertyAccessorTests {
 		pvs.add("map[key4][0].name", "nameA");
 		pvs.add("map[key4][1].name", "nameB");
 		pvs.add("map[key5[foo]].name", "name10");
+		pvs.add("myTestBeans[0].name", "nameZZ");
 		accessor.setPropertyValues(pvs);
 		assertThat(tb0.getName()).isEqualTo("name5");
 		assertThat(tb1.getName()).isEqualTo("name4");
@@ -1419,6 +1427,7 @@ abstract class AbstractPropertyAccessorTests {
 		assertThat(accessor.getPropertyValue("map[key4][0].name")).isEqualTo("nameA");
 		assertThat(accessor.getPropertyValue("map[key4][1].name")).isEqualTo("nameB");
 		assertThat(accessor.getPropertyValue("map[key5[foo]].name")).isEqualTo("name10");
+		assertThat(accessor.getPropertyValue("myTestBeans[0].name")).isEqualTo("nameZZ");
 	}
 
 	@Test
@@ -1994,6 +2003,7 @@ abstract class AbstractPropertyAccessorTests {
 
 	}
 
+	@SuppressWarnings("unchecked")
 	static class Spr13837Bean implements Spr13837 {
 
 		protected Integer something;
@@ -2004,7 +2014,6 @@ abstract class AbstractPropertyAccessorTests {
 		}
 
 		@Override
-		@SuppressWarnings("unchecked")
 		public Spr13837Bean setSomething(final Integer something) {
 			this.something = something;
 			return this;

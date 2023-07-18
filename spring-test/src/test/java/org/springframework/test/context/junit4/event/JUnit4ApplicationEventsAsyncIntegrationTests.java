@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * or assert the events from a separate thread, in conjunction with JUnit 4.
  *
  * @author Simon Baslé
- * @since 6.1.0
+ * @since 6.1
  */
 @RunWith(SpringRunner.class)
 @RecordApplicationEvents
@@ -71,10 +71,10 @@ public class JUnit4ApplicationEventsAsyncIntegrationTests {
 		context.publishEvent(new CustomEvent("sync"));
 
 		Awaitility.await().atMost(Durations.ONE_SECOND)
-				.untilAsserted(() -> assertThat(assertThat(this.applicationEvents.stream(CustomEvent.class))
+				.untilAsserted(() -> assertThat(this.applicationEvents.stream(CustomEvent.class))
 						.singleElement()
 						.extracting(CustomEvent::getMessage, InstanceOfAssertFactories.STRING)
-						.isEqualTo("sync")));
+						.isEqualTo("sync"));
 	}
 
 

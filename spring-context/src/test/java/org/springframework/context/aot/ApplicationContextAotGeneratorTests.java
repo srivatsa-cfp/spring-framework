@@ -22,9 +22,13 @@ import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import org.springframework.aot.generate.GeneratedFiles.Kind;
 import org.springframework.aot.generate.GenerationContext;
@@ -45,8 +49,13 @@ import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RegisteredBean;
 import org.springframework.beans.factory.support.RootBeanDefinition;
+import org.springframework.beans.testfixture.beans.factory.aot.TestHierarchy;
+import org.springframework.beans.testfixture.beans.factory.aot.TestHierarchy.Implementation;
+import org.springframework.beans.testfixture.beans.factory.aot.TestHierarchy.One;
+import org.springframework.beans.testfixture.beans.factory.aot.TestHierarchy.Two;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigUtils;
@@ -59,6 +68,7 @@ import org.springframework.context.testfixture.context.annotation.CglibConfigura
 import org.springframework.context.testfixture.context.annotation.ConfigurableCglibConfiguration;
 import org.springframework.context.testfixture.context.annotation.GenericTemplateConfiguration;
 import org.springframework.context.testfixture.context.annotation.InitDestroyComponent;
+import org.springframework.context.testfixture.context.annotation.InjectionPointConfiguration;
 import org.springframework.context.testfixture.context.annotation.LazyAutowiredFieldComponent;
 import org.springframework.context.testfixture.context.annotation.LazyAutowiredMethodComponent;
 import org.springframework.context.testfixture.context.annotation.LazyConstructorArgumentComponent;
@@ -74,6 +84,7 @@ import org.springframework.core.test.tools.CompileWithForkedClassLoader;
 import org.springframework.core.test.tools.Compiled;
 import org.springframework.core.test.tools.TestCompiler;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.util.ReflectionUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -250,9 +261,9 @@ class ApplicationContextAotGeneratorTests {
 			GenericApplicationContext freshApplicationContext = toFreshApplicationContext(initializer);
 			assertThat(freshApplicationContext.getBeanDefinitionNames()).containsOnly("initDestroyComponent");
 			InitDestroyComponent bean = freshApplicationContext.getBean(InitDestroyComponent.class);
-			assertThat(bean.events).containsExactly("customInit", "init");
+			assertThat(bean.events).containsExactly("init", "customInit");
 			freshApplicationContext.close();
-			assertThat(bean.events).containsExactly("customInit", "init", "customDestroy", "destroy");
+			assertThat(bean.events).containsExactly("init", "customInit", "destroy", "customDestroy");
 		});
 	}
 
@@ -315,6 +326,33 @@ class ApplicationContextAotGeneratorTests {
 		});
 	}
 
+	@Test
+	void processAheadOfTimeWithInjectionPoint() {
+		GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+		applicationContext.registerBean(InjectionPointConfiguration.class);
+		testCompiledResult(applicationContext, (initializer, compiled) -> {
+			GenericApplicationContext freshApplicationContext = toFreshApplicationContext(initializer);
+			assertThat(freshApplicationContext.getBean("classToString"))
+					.isEqualTo(InjectionPointConfiguration.class.getName());
+		});
+	}
+
+	@Test // gh-30689
+	void processAheadOfTimeWithExplicitResolvableType() {
+		GenericApplicationContext applicationContext = new GenericApplicationContext();
+		DefaultListableBeanFactory beanFactory = applicationContext.getDefaultListableBeanFactory();
+		RootBeanDefinition beanDefinition = new RootBeanDefinition(One.class);
+		beanDefinition.setResolvedFactoryMethod(ReflectionUtils.findMethod(TestHierarchy.class, "oneBean"));
+		// Override target type
+		beanDefinition.setTargetType(Two.class);
+		beanFactory.registerBeanDefinition("hierarchyBean", beanDefinition);
+		testCompiledResult(applicationContext, (initializer, compiled) -> {
+			GenericApplicationContext freshApplicationContext = toFreshApplicationContext(initializer);
+			assertThat(freshApplicationContext.getBean(Two.class))
+					.isInstanceOf(Implementation.class);
+		});
+	}
+
 	@Nested
 	@CompileWithForkedClassLoader
 	class ConfigurationClassCglibProxy {
@@ -368,6 +406,37 @@ class ApplicationContextAotGeneratorTests {
 			Constructor<?> userConstructor = ConfigurableCglibConfiguration.class.getDeclaredConstructors()[0];
 			assertThat(RuntimeHintsPredicates.reflection().onConstructor(userConstructor).introspect())
 					.accepts(generationContext.getRuntimeHints());
+		}
+
+	}
+
+	@Nested
+	static class ActiveProfile {
+
+		@ParameterizedTest
+		@MethodSource("activeProfilesParameters")
+		void processAheadOfTimeWhenHasActiveProfiles(String[] aotProfiles, String[] runtimeProfiles, String[] expectedActiveProfiles) {
+			GenericApplicationContext applicationContext = new GenericApplicationContext();
+			if (aotProfiles.length != 0) {
+				applicationContext.getEnvironment().setActiveProfiles(aotProfiles);
+			}
+			testCompiledResult(applicationContext, (initializer, compiled) -> {
+				GenericApplicationContext freshApplicationContext = new GenericApplicationContext();
+				if (runtimeProfiles.length != 0) {
+					freshApplicationContext.getEnvironment().setActiveProfiles(runtimeProfiles);
+				}
+				initializer.initialize(freshApplicationContext);
+				freshApplicationContext.refresh();
+				assertThat(freshApplicationContext.getEnvironment().getActiveProfiles()).containsExactly(expectedActiveProfiles);
+			});
+		}
+
+		static Stream<Arguments> activeProfilesParameters() {
+			return Stream.of(Arguments.of(new String[] { "aot", "prod" }, new String[] {}, new String[] { "aot", "prod" }),
+					Arguments.of(new String[] {}, new String[] { "aot", "prod" }, new String[] { "aot", "prod" }),
+					Arguments.of(new String[] { "aot" }, new String[] { "prod" }, new String[] { "prod", "aot" }),
+					Arguments.of(new String[] { "aot", "prod" }, new String[] { "aot", "prod" }, new String[] { "aot", "prod" }),
+					Arguments.of(new String[] { "default" }, new String[] {}, new String[] {}));
 		}
 
 	}

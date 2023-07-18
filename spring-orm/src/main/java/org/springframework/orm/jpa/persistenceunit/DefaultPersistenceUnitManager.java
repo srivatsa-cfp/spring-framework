@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import jakarta.persistence.PersistenceException;
 import jakarta.persistence.SharedCacheMode;
 import jakarta.persistence.ValidationMode;
 import jakarta.persistence.spi.PersistenceUnitInfo;
+import jakarta.validation.NoProviderFoundException;
+import jakarta.validation.Validation;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -48,6 +50,7 @@ import org.springframework.jdbc.datasource.lookup.DataSourceLookup;
 import org.springframework.jdbc.datasource.lookup.JndiDataSourceLookup;
 import org.springframework.jdbc.datasource.lookup.MapDataSourceLookup;
 import org.springframework.lang.Nullable;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.ResourceUtils;
 
@@ -99,6 +102,9 @@ public class DefaultPersistenceUnitManager
 	 */
 	public static final String ORIGINAL_DEFAULT_PERSISTENCE_UNIT_NAME = "default";
 
+
+	private static final boolean beanValidationPresent = ClassUtils.isPresent(
+			"jakarta.validation.Validation", DefaultPersistenceUnitManager.class.getClassLoader());
 
 	protected final Log logger = LogFactory.getLog(getClass());
 
@@ -444,9 +450,12 @@ public class DefaultPersistenceUnitManager
 
 		List<SpringPersistenceUnitInfo> puis = readPersistenceUnitInfos();
 		for (SpringPersistenceUnitInfo pui : puis) {
+			// Determine default persistence unit root URL
 			if (pui.getPersistenceUnitRootUrl() == null) {
 				pui.setPersistenceUnitRootUrl(determineDefaultPersistenceUnitRootUrl());
 			}
+
+			// Override DataSource and shared cache mode
 			if (pui.getJtaDataSource() == null && this.defaultJtaDataSource != null) {
 				pui.setJtaDataSource(this.defaultJtaDataSource);
 			}
@@ -456,16 +465,27 @@ public class DefaultPersistenceUnitManager
 			if (this.sharedCacheMode != null) {
 				pui.setSharedCacheMode(this.sharedCacheMode);
 			}
+
+			// Override validation mode or pre-resolve provider detection
 			if (this.validationMode != null) {
 				pui.setValidationMode(this.validationMode);
 			}
+			else if (pui.getValidationMode() == ValidationMode.AUTO) {
+				pui.setValidationMode(
+						beanValidationPresent && BeanValidationDelegate.isValidationProviderPresent() ?
+						ValidationMode.CALLBACK : ValidationMode.NONE);
+			}
+
+			// Initialize persistence unit ClassLoader
 			if (this.loadTimeWeaver != null) {
 				pui.init(this.loadTimeWeaver);
 			}
 			else {
 				pui.init(this.resourcePatternResolver.getClassLoader());
 			}
+
 			postProcessPersistenceUnitInfo(pui);
+
 			String name = pui.getPersistenceUnitName();
 			if (!this.persistenceUnitInfoNames.add(name) && !isPersistenceUnitOverrideAllowed()) {
 				StringBuilder msg = new StringBuilder();
@@ -688,6 +708,23 @@ public class DefaultPersistenceUnitManager
 			}
 		}
 		return pui;
+	}
+
+
+	/**
+	 * Inner class to avoid a hard dependency on the Bean Validation API at runtime.
+	 */
+	private static class BeanValidationDelegate {
+
+		public static boolean isValidationProviderPresent() {
+			try {
+				Validation.byDefaultProvider().configure();
+				return true;
+			}
+			catch (NoProviderFoundException ex) {
+				return false;
+			}
+		}
 	}
 
 }

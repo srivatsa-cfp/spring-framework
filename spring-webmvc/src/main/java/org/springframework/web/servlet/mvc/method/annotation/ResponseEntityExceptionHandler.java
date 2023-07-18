@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.lang.Nullable;
 import org.springframework.validation.BindException;
+import org.springframework.validation.method.MethodValidationException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.ErrorResponseException;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
@@ -48,8 +49,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.util.WebUtils;
 
 /**
@@ -120,13 +123,16 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 			MissingServletRequestPartException.class,
 			ServletRequestBindingException.class,
 			MethodArgumentNotValidException.class,
+			HandlerMethodValidationException.class,
 			NoHandlerFoundException.class,
+			NoResourceFoundException.class,
 			AsyncRequestTimeoutException.class,
 			ErrorResponseException.class,
 			ConversionNotSupportedException.class,
 			TypeMismatchException.class,
 			HttpMessageNotReadableException.class,
 			HttpMessageNotWritableException.class,
+			MethodValidationException.class,
 			BindException.class
 		})
 	@Nullable
@@ -155,8 +161,14 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 		else if (ex instanceof MethodArgumentNotValidException subEx) {
 			return handleMethodArgumentNotValid(subEx, subEx.getHeaders(), subEx.getStatusCode(), request);
 		}
+		else if (ex instanceof HandlerMethodValidationException subEx) {
+			return handleHandlerMethodValidationException(subEx, subEx.getHeaders(), subEx.getStatusCode(), request);
+		}
 		else if (ex instanceof NoHandlerFoundException subEx) {
 			return handleNoHandlerFoundException(subEx, subEx.getHeaders(), subEx.getStatusCode(), request);
+		}
+		else if (ex instanceof NoResourceFoundException subEx) {
+			return handleNoResourceFoundException(subEx, subEx.getHeaders(), subEx.getStatusCode(), request);
 		}
 		else if (ex instanceof AsyncRequestTimeoutException subEx) {
 			return handleAsyncRequestTimeoutException(subEx, subEx.getHeaders(), subEx.getStatusCode(), request);
@@ -179,6 +191,9 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 		}
 		else if (ex instanceof HttpMessageNotWritableException theEx) {
 			return handleHttpMessageNotWritable(theEx, headers, HttpStatus.INTERNAL_SERVER_ERROR, request);
+		}
+		else if (ex instanceof MethodValidationException subEx) {
+			return handleMethodValidationException(subEx, headers, HttpStatus.INTERNAL_SERVER_ERROR, request);
 		}
 		else if (ex instanceof BindException theEx) {
 			return handleBindException(theEx, headers, HttpStatus.BAD_REQUEST, request);
@@ -331,6 +346,24 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 	}
 
 	/**
+	 * Customize the handling of {@link HandlerMethodValidationException}.
+	 * <p>This method delegates to {@link #handleExceptionInternal}.
+	 * @param ex the exception to handle
+	 * @param headers the headers to be written to the response
+	 * @param status the selected response status
+	 * @param request the current request
+	 * @return a {@code ResponseEntity} for the response to use, possibly
+	 * {@code null} when the response is already committed
+	 * @since 6.1
+	 */
+	@Nullable
+	protected ResponseEntity<Object> handleHandlerMethodValidationException(
+			HandlerMethodValidationException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+		return handleExceptionInternal(ex, null, headers, status, request);
+	}
+
+	/**
 	 * Customize the handling of {@link NoHandlerFoundException}.
 	 * <p>This method delegates to {@link #handleExceptionInternal}.
 	 * @param ex the exception to handle
@@ -344,6 +377,24 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 	@Nullable
 	protected ResponseEntity<Object> handleNoHandlerFoundException(
 			NoHandlerFoundException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+		return handleExceptionInternal(ex, null, headers, status, request);
+	}
+
+	/**
+	 * Customize the handling of {@link NoResourceFoundException}.
+	 * <p>This method delegates to {@link #handleExceptionInternal}.
+	 * @param ex the exception to handle
+	 * @param headers the headers to use for the response
+	 * @param status the status code to use for the response
+	 * @param request the current request
+	 * @return a {@code ResponseEntity} for the response to use, possibly
+	 * {@code null} when the response is already committed
+	 * @since 6.1
+	 */
+	@Nullable
+	protected ResponseEntity<Object> handleNoResourceFoundException(
+			NoResourceFoundException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
 
 		return handleExceptionInternal(ex, null, headers, status, request);
 	}
@@ -495,6 +546,29 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 			BindException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
 
 		ProblemDetail body = ProblemDetail.forStatusAndDetail(status, "Failed to bind request");
+		return handleExceptionInternal(ex, body, headers, status, request);
+	}
+
+
+	/**
+	 * Customize the handling of {@link MethodValidationException}.
+	 * <p>By default this method creates a {@link ProblemDetail} with the status
+	 * and a short detail message, and also looks up an override for the detail
+	 * via {@link MessageSource}, before delegating to
+	 * {@link #handleExceptionInternal}.
+	 * @param ex the exception to handle
+	 * @param headers the headers to use for the response
+	 * @param status the status code to use for the response
+	 * @param request the current request
+	 * @return a {@code ResponseEntity} for the response to use, possibly
+	 * {@code null} when the response is already committed
+	 * @since 6.1
+	 */
+	@Nullable
+	protected ResponseEntity<Object> handleMethodValidationException(
+			MethodValidationException ex, HttpHeaders headers, HttpStatus status, WebRequest request) {
+
+		ProblemDetail body = createProblemDetail(ex, status, "Validation failed", null, null, request);
 		return handleExceptionInternal(ex, body, headers, status, request);
 	}
 

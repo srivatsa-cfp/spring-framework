@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -244,14 +244,39 @@ public class StandardEvaluationContext implements EvaluationContext {
 		}
 	}
 
+	/**
+	 * Set multiple named variables in this evaluation context to given values.
+	 * <p>This is a convenience variant of {@link #setVariable(String, Object)}.
+	 * @param variables the names and values of the variables to set
+	 * @see #setVariable(String, Object)
+	 */
 	public void setVariables(Map<String, Object> variables) {
 		variables.forEach(this::setVariable);
 	}
 
+	/**
+	 * Register the specified Method as a SpEL function.
+	 * <p>Note: Function names share a namespace with the variables in this
+	 * evaluation context, as populated by {@link #setVariable(String, Object)}.
+	 * Make sure that specified function names and variable names do not overlap.
+	 * @param name the name of the function
+	 * @param method the Method to register
+	 * @see #registerFunction(String, MethodHandle)
+	 */
 	public void registerFunction(String name, Method method) {
 		this.variables.put(name, method);
 	}
 
+	/**
+	 * Register the specified MethodHandle as a SpEL function.
+	 * <p>Note: Function names share a namespace with the variables in this
+	 * evaluation context, as populated by {@link #setVariable(String, Object)}.
+	 * Make sure that specified function names and variable names do not overlap.
+	 * @param name the name of the function
+	 * @param methodHandle the MethodHandle to register
+	 * @since 6.1
+	 * @see #registerFunction(String, Method)
+	 */
 	public void registerFunction(String name, MethodHandle methodHandle) {
 		this.variables.put(name, methodHandle);
 	}

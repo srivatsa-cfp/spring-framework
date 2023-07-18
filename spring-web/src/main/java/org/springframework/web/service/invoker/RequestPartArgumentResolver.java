@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@ package org.springframework.web.service.invoker;
 import org.reactivestreams.Publisher;
 
 import org.springframework.core.MethodParameter;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ReactiveAdapter;
 import org.springframework.core.ReactiveAdapterRegistry;
-import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.codec.multipart.Part;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.bind.annotation.RequestPart;
 
 /**
@@ -47,11 +49,28 @@ import org.springframework.web.bind.annotation.RequestPart;
  */
 public class RequestPartArgumentResolver extends AbstractNamedValueArgumentResolver {
 
+	private static final boolean REACTOR_PRESENT =
+			ClassUtils.isPresent("reactor.core.publisher.Mono", RequestPartArgumentResolver.class.getClassLoader());
+
+
+	@Nullable
 	private final ReactiveAdapterRegistry reactiveAdapterRegistry;
 
 
-	public RequestPartArgumentResolver(ReactiveAdapterRegistry reactiveAdapterRegistry) {
-		this.reactiveAdapterRegistry = reactiveAdapterRegistry;
+	/**
+	 * Constructor with a {@link HttpExchangeAdapter}, for access to config settings.
+	 * @since 6.1
+	 */
+	public RequestPartArgumentResolver(HttpExchangeAdapter exchangeAdapter) {
+		if (REACTOR_PRESENT) {
+			this.reactiveAdapterRegistry =
+					(exchangeAdapter instanceof ReactorHttpExchangeAdapter reactorAdapter ?
+							reactorAdapter.getReactiveAdapterRegistry() :
+							ReactiveAdapterRegistry.getSharedInstance());
+		}
+		else {
+			this.reactiveAdapterRegistry = null;
+		}
 	}
 
 
@@ -66,16 +85,33 @@ public class RequestPartArgumentResolver extends AbstractNamedValueArgumentResol
 	protected void addRequestValue(
 			String name, Object value, MethodParameter parameter, HttpRequestValues.Builder requestValues) {
 
-		Class<?> type = parameter.getParameterType();
-		ReactiveAdapter adapter = this.reactiveAdapterRegistry.getAdapter(type);
-		if (adapter != null) {
-			Assert.isTrue(!adapter.isNoValue(), "Expected publisher that produces a value");
-			Publisher<?> publisher = adapter.toPublisher(value);
-			requestValues.addRequestPart(name, publisher, ResolvableType.forMethodParameter(parameter.nested()));
+		if (this.reactiveAdapterRegistry != null) {
+			Class<?> type = parameter.getParameterType();
+			ReactiveAdapter adapter = this.reactiveAdapterRegistry.getAdapter(type);
+			if (adapter != null) {
+				MethodParameter nestedParameter = parameter.nested();
+
+				String message = "Async type for @RequestPart should produce value(s)";
+				Assert.isTrue(!adapter.isNoValue(), message);
+				Assert.isTrue(nestedParameter.getNestedParameterType() != Void.class, message);
+
+				if (requestValues instanceof ReactiveHttpRequestValues.Builder reactiveValues) {
+					reactiveValues.addRequestPartPublisher(
+							name, adapter.toPublisher(value), asParameterizedTypeRef(nestedParameter));
+				}
+				else {
+					throw new IllegalStateException(
+							"RequestPart with a reactive type is only supported with reactive client");
+				}
+				return;
+			}
 		}
-		else {
-			requestValues.addRequestPart(name, value);
-		}
+
+		requestValues.addRequestPart(name, value);
+	}
+
+	private static ParameterizedTypeReference<Object> asParameterizedTypeRef(MethodParameter nestedParam) {
+		return ParameterizedTypeReference.forType(nestedParam.getNestedGenericParameterType());
 	}
 
 }

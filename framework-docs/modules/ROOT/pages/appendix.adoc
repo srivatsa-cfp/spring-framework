@@ -25,7 +25,7 @@ The following table lists all currently supported Spring properties.
 | `spring.beaninfo.ignore`
 | Instructs Spring to use the `Introspector.IGNORE_ALL_BEANINFO` mode when calling the
 JavaBeans `Introspector`. See
-{api-spring-framework}++/beans/CachedIntrospectionResults.html#IGNORE_BEANINFO_PROPERTY_NAME++[`CachedIntrospectionResults`]
+{api-spring-framework}++/beans/StandardBeanInfoFactory.html#IGNORE_BEANINFO_PROPERTY_NAME++[`CachedIntrospectionResults`]
 for details.
 
 | `spring.expression.compiler.mode`
@@ -38,11 +38,6 @@ xref:core/expressions/evaluation.adoc#expressions-compiler-configuration[Spring 
 resolvable otherwise. See
 {api-spring-framework}++/core/env/AbstractEnvironment.html#IGNORE_GETENV_PROPERTY_NAME++[`AbstractEnvironment`]
 for details.
-
-| `spring.index.ignore`
-| Instructs Spring to ignore the components index located in
-`META-INF/spring.components`. See xref:core/beans/classpath-scanning.adoc#beans-scanning-index[Generating an Index of Candidate Components]
-.
 
 | `spring.jdbc.getParameterType.ignore`
 | Instructs Spring to ignore `java.sql.ParameterMetaData.getParameterType` completely.
@@ -68,6 +63,11 @@ on a test class. See xref:testing/annotations/integration-junit-jupiter.adoc#int
 | `spring.test.context.cache.maxSize`
 | The maximum size of the context cache in the _Spring TestContext Framework_. See
 xref:testing/testcontext-framework/ctx-management/caching.adoc[Context Caching].
+
+| `spring.test.context.failure.threshold`
+| The failure threshold for errors encountered while attempting to load an `ApplicationContext`
+in the _Spring TestContext Framework_. See
+xref:testing/testcontext-framework/ctx-management/failure-threshold.adoc[Context Failure Threshold].
 
 | `spring.test.enclosing.configuration`
 | The default _enclosing configuration inheritance mode_ to use if

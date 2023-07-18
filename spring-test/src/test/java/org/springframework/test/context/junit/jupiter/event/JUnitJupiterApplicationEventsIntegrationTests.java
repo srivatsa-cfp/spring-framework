@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -264,10 +264,10 @@ class JUnitJupiterApplicationEventsIntegrationTests {
 			context.publishEvent(new CustomEvent("sync"));
 
 			Awaitility.await().atMost(Durations.ONE_SECOND)
-					.untilAsserted(() -> assertThat(assertThat(this.applicationEvents.stream(CustomEvent.class))
+					.untilAsserted(() -> assertThat(this.applicationEvents.stream(CustomEvent.class))
 							.singleElement()
 							.extracting(CustomEvent::getMessage, InstanceOfAssertFactories.STRING)
-							.isEqualTo("sync")));
+							.isEqualTo("sync"));
 		}
 
 	}

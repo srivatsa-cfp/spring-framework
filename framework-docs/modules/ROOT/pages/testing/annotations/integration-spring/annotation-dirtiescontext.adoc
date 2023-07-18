@@ -12,7 +12,11 @@ metadata.
 You can use `@DirtiesContext` as both a class-level and a method-level annotation within
 the same class or class hierarchy. In such scenarios, the `ApplicationContext` is marked
 as dirty before or after any such annotated method as well as before or after the current
-test class, depending on the configured `methodMode` and `classMode`.
+test class, depending on the configured `methodMode` and `classMode`. When
+`@DirtiesContext` is declared at both the class level and the method level, the
+configured modes from both annotations will be honored. For example, if the class mode is
+set to `BEFORE_EACH_TEST_METHOD` and the method mode is set to `AFTER_METHOD`, the
+context will be marked as dirty both before and after the given test method.
 
 The following examples explain when the context would be dirtied for various
 configuration scenarios:
@@ -31,11 +35,11 @@ Java::
 		// some tests that require a new Spring container
 	}
 ----
-======
 <1> Dirty the context before the current test class.
 +
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@DirtiesContext(classMode = BEFORE_CLASS) // <1>
 	class FreshContextTests {
@@ -43,6 +47,7 @@ Java::
 	}
 ----
 <1> Dirty the context before the current test class.
+======
 
 * After the current test class, when declared on a class with class mode set to
 `AFTER_CLASS` (i.e., the default class mode).
@@ -58,11 +63,11 @@ Java::
 		// some tests that result in the Spring container being dirtied
 	}
 ----
-======
 <1> Dirty the context after the current test class.
 +
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@DirtiesContext // <1>
 	class ContextDirtyingTests {
@@ -70,6 +75,7 @@ Java::
 	}
 ----
 <1> Dirty the context after the current test class.
+======
 
 
 * Before each test method in the current test class, when declared on a class with class
@@ -86,11 +92,11 @@ Java::
 		// some tests that require a new Spring container
 	}
 ----
-======
 <1> Dirty the context before each test method.
 +
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@DirtiesContext(classMode = BEFORE_EACH_TEST_METHOD) // <1>
 	class FreshContextTests {
@@ -98,6 +104,7 @@ Java::
 	}
 ----
 <1> Dirty the context before each test method.
+======
 
 
 * After each test method in the current test class, when declared on a class with class
@@ -114,11 +121,11 @@ Java::
 		// some tests that result in the Spring container being dirtied
 	}
 ----
-======
 <1> Dirty the context after each test method.
 +
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@DirtiesContext(classMode = AFTER_EACH_TEST_METHOD) // <1>
 	class ContextDirtyingTests {
@@ -126,6 +133,7 @@ Java::
 	}
 ----
 <1> Dirty the context after each test method.
+======
 
 
 * Before the current test, when declared on a method with the method mode set to
@@ -143,11 +151,11 @@ Java::
 		// some logic that requires a new Spring container
 	}
 ----
-======
 <1> Dirty the context before the current test method.
 +
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@DirtiesContext(methodMode = BEFORE_METHOD) // <1>
 	@Test
@@ -156,6 +164,7 @@ Java::
 	}
 ----
 <1> Dirty the context before the current test method.
+======
 
 * After the current test, when declared on a method with the method mode set to
 `AFTER_METHOD` (i.e., the default method mode).
@@ -172,11 +181,11 @@ Java::
 		// some logic that results in the Spring container being dirtied
 	}
 ----
-======
 <1> Dirty the context after the current test method.
 +
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@DirtiesContext // <1>
 	@Test
@@ -185,6 +194,7 @@ Java::
 	}
 ----
 <1> Dirty the context after the current test method.
+======
 
 
 If you use `@DirtiesContext` in a test whose context is configured as part of a context
@@ -220,11 +230,11 @@ Java::
 		}
 	}
 ----
-======
 <1> Use the current-level algorithm.
 
+Kotlin::
++
 [source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
-.Kotlin
 ----
 	@ContextHierarchy(
 		ContextConfiguration("/parent-config.xml"),
@@ -243,6 +253,7 @@ Java::
 	}
 ----
 <1> Use the current-level algorithm.
+======
 
 
 For further details regarding the `EXHAUSTIVE` and `CURRENT_LEVEL` algorithms, see the
